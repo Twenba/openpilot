@@ -30,6 +30,7 @@ enum SpiError {
 
 const unsigned int SPI_ACK_TIMEOUT = 500; // milliseconds
 const std::string SPI_DEVICE = "/dev/spidev0.0";
+
 class LockEx {
 public:
   LockEx(int fd_, std::recursive_mutex &m_) : fd(fd_), m(m_) {
@@ -351,6 +352,7 @@ int PandaSpiHandle::spi_transfer(uint64_t transaction_id, uint8_t endpoint, uint
   if (ret < 0) {
     goto fail;
   }
+  
   // Send data
   for (size_t i = 0; i < sizeof(transaction_id); i++) {
     tx_buf[i] = static_cast<uint8_t>(transaction_id >> (8U * i));
