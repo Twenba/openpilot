@@ -16,6 +16,7 @@
 #define SPI_REALIGN_FRAME_SIZE (SPI_HEADER_SIZE + 1U)
 #define SPI_MAX_DATA_SIZE (SPI_BUF_SIZE - SPI_BUFFER_RESERVE)
 #define SPI_RECOVERY_TRANSFER_SIZE (SPI_BUF_SIZE / 2U)
+#define SPI_MAX_TRANSFER_ATTEMPTS 5U
 
 // ICSP layout contract: this C++ host intentionally uses a smaller local
 // buffer than the firmware/Python transport. That is wire-compatible because

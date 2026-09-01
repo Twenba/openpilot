@@ -207,37 +207,18 @@ bool check_checksum(uint8_t *data, int data_len) {
 
 int PandaSpiHandle::spi_transfer_retry(uint8_t endpoint, uint8_t *tx_data, uint16_t tx_len, uint8_t *rx_data, uint16_t max_rx_len, unsigned int timeout) {
   int ret;
-  int nack_count = 0;
-  int timeout_count = 0;
-  bool timed_out = false;
+  unsigned int attempt_count = 0U;
   double start_time = millis_since_boot();
   LockEx lock(spi_fd, hw_lock);
   const uint64_t transaction_id = next_transaction_id++;
 
   do {
+    attempt_count += 1U;
     ret = spi_transfer(transaction_id, endpoint, tx_data, tx_len, rx_data, max_rx_len, timeout);
-
-    if (ret < 0) {
-      timed_out = (timeout != 0) && (timeout_count > 5);
-      timeout_count += ret == SpiError::ACK_TIMEOUT;
-
-      // give other threads a chance to run
-      std::this_thread::yield();
-
-      if (ret == SpiError::NACK) {
-        // prevent busy waiting while the panda is NACK'ing
-        // due to full TX buffers
-        nack_count += 1;
-        if (nack_count > 3) {
-          SPILOG(LOGD, "NACK sleep %d", nack_count);
-          usleep(std::clamp(nack_count*10, 200, 2000));
-        }
-      }
-    }
-  } while (ret < 0 && connected && !timed_out);
+  } while ((ret < 0) && connected && (attempt_count < SPI_MAX_TRANSFER_ATTEMPTS));
 
   if (ret < 0) {
-    SPILOG(LOGE, "transfer failed, after %d tries, %.2fms", timeout_count, millis_since_boot() - start_time);
+    SPILOG(LOGE, "transfer failed, after %u tries, %.2fms", attempt_count, millis_since_boot() - start_time);
   }
 
   return ret;
