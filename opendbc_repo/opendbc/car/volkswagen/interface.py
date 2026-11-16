@@ -75,8 +75,9 @@ class CarInterface(CarInterfaceBase):
       # Strukturen_01 (0x24F) is the MEB radar object message. Camera harness keeps radar unavailable.
       # radarDelay(0.8) 보정과 함께 사용 (infiniteCable2와 동일). 보정 없으면 레이더 리드 타이밍이
       # 어긋나 조기제동/재출발 막힘이 났었음.
-      if ret.networkLocation == NetworkLocation.gateway:
+      if ret.networkLocation == NetworkLocation.gateway and not (ret.flags & VolkswagenFlags.MQB_EVO):
         ret.radarUnavailable = 0x24F not in fingerprint[0]
+      # MQB Evo: radar objects (MEB Strukturen_01 layout) are not ported/verified -> keep radar unavailable.
 
     else:
       # Set global MQB parameters
@@ -118,6 +119,10 @@ class CarInterface(CarInterfaceBase):
     # MEB longitudinal is supported on the gateway harness (stock radar/AEB stay active, no radar-disable
     # needed). Camera-harness MEB long would require DISABLE_RADAR support (not ported), so keep it gateway-only.
     ret.alphaLongitudinalAvailable = ret.networkLocation == NetworkLocation.gateway or docs
+    if ret.flags & VolkswagenFlags.MQB_EVO:
+      # MQB Evo port is lateral-only for now (stock ACC). carrot's MEB longitudinal (ACC_18 / hold handling)
+      # was validated on ID.4 only and MQB Evo lacks VMM_02.Long_Control_Inhibit / ESC_50.Motion_State.
+      ret.alphaLongitudinalAvailable = False
 
     # MQB는 carrot 원본과 동일하게 alpha_long만으로 활성(카메라 하네스 MQB 롱컨 유지).
     # MEB만 게이트웨이 하네스 필요(카메라 하네스 MEB 롱컨은 레이더 무력화 미지원).

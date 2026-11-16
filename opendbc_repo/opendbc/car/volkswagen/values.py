@@ -100,7 +100,12 @@ class CarControllerParams:
 
       self.CURVATURE_LIMITS: CurvatureSteeringLimits = CurvatureSteeringLimits(0.195)
 
-      self.shifter_values = can_define.dv["Getriebe_11"]["GE_Fahrstufe"]
+      # MQB Evo: Getriebe_11 and Gateway_73 carry different GE_Fahrstufe value tables in vw_mqbevo_2024
+      # (vw_meb tables are identical), so map with the table of the message carstate actually reads.
+      if CP.flags & VolkswagenFlags.MQB_EVO and CP.flags & VolkswagenFlags.ALT_GEAR:
+        self.shifter_values = can_define.dv["Gateway_73"]["GE_Fahrstufe"]
+      else:
+        self.shifter_values = can_define.dv["Getriebe_11"]["GE_Fahrstufe"]
       self.hca_status_values = can_define.dv["QFK_01"]["LatCon_HCA_Status"]
 
       base_buttons = [
@@ -204,7 +209,8 @@ class VolkswagenFlags(IntFlag):
   PQ = 2
   MEB = 16
   MEB_GEN2 = 128
-  MQB_EVO = 256  # referenced by MEB longitudinal (mebcan); not set for ID.4 MK1
+  MQB_EVO = 256  # MQB Evo (Golf 8 / Octavia 4 / Kodiaq 2 ...): shares the MEB curvature (HCA_03) stack
+  MQB_EVO_GEN2 = 8192  # MQB Evo 2024+ (infiniteCable2 identical bit): vw_mqbevo_2024 DBC / GEN2 CRC
 
 
 @dataclass
@@ -234,6 +240,20 @@ class VolkswagenMEBPlatformConfig(PlatformConfig):
     self.flags |= VolkswagenFlags.MEB
     if self.flags & VolkswagenFlags.MEB_GEN2:
       self.dbc_dict = {Bus.pt: 'vw_meb_2024', Bus.radar: 'vw_meb_2024'}
+
+
+@dataclass
+class VolkswagenMQBevoPlatformConfig(PlatformConfig):
+  # MQB Evo is driven through the MEB code paths (curvature HCA_03, QFK_01 feedback, Motor_51/ESC_51,
+  # volkswagenMeb panda safety), same as infiniteCable2 where volkswagenMqbEvo is an alias of the MEB hooks.
+  # The MEB flag is therefore set as well, so every carrot "is_vw_meb" path (curvature PID etc.) applies.
+  # Only GEN2 (2024+) is ported: vw_mqbevo_2024 DBC. GEN2 shares MEB_GEN2 behaviour (DLC/CRC/BSM bus).
+  dbc_dict: DbcDict = field(default_factory=lambda: {Bus.pt: 'vw_mqbevo_2024'})
+  chassis_codes: set[str] = field(default_factory=set)
+  wmis: set[WMI] = field(default_factory=set)
+
+  def init(self):
+    self.flags |= VolkswagenFlags.MEB | VolkswagenFlags.MQB_EVO | VolkswagenFlags.MQB_EVO_GEN2 | VolkswagenFlags.MEB_GEN2
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -286,7 +306,7 @@ class VWCarDocs(CarDocs):
 # FW_VERSIONS for that existing CAR.
 
 class CAR(Platforms):
-  config: VolkswagenMQBPlatformConfig | VolkswagenPQPlatformConfig | VolkswagenMEBPlatformConfig
+  config: VolkswagenMQBPlatformConfig | VolkswagenPQPlatformConfig | VolkswagenMEBPlatformConfig | VolkswagenMQBevoPlatformConfig
 
   VOLKSWAGEN_ARTEON_MK1 = VolkswagenMQBPlatformConfig(
     [
@@ -498,6 +518,12 @@ class CAR(Platforms):
     VolkswagenCarSpecs(mass=1569, wheelbase=2.79),
     chassis_codes={"NS"},
     wmis={WMI.SKODA, WMI.VOLKSWAGEN_GROUP_RUS},
+  )
+  SKODA_KODIAQ_MK2 = VolkswagenMQBevoPlatformConfig(
+    [VWCarDocs("Škoda Kodiaq 2024-26")],
+    VolkswagenCarSpecs(mass=1708, wheelbase=2.791),
+    chassis_codes={"PS"},
+    wmis={WMI.SKODA},
   )
   SKODA_OCTAVIA_MK3 = VolkswagenMQBPlatformConfig(
     [

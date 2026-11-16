@@ -220,11 +220,14 @@ class CarState(CarStateBase):
       gear_raw = pt_cp.vl["Gateway_73"]["GE_Fahrstufe"]
     else:
       gear_raw = pt_cp.vl["Getriebe_11"]["GE_Fahrstufe"]
-    drive_mode = gear_raw != 0  # 0 = Park/Neutral
-    ret.steerFaultTemporary, ret.steerFaultPermanent = self.update_hca_state_meb(hca_status, drive_mode=drive_mode)
-
     # 기어
     ret.gearShifter = self.parse_gear_shifter(self.CCP.shifter_values.get(gear_raw, None))
+    if self.CP.flags & VolkswagenFlags.MQB_EVO:
+      # MQB Evo GE_Fahrstufe: P=5 (no MEB-style 0 = Park/Neutral), use the parsed gear (infiniteCable2 identical)
+      drive_mode = ret.gearShifter == GearShifter.drive
+    else:
+      drive_mode = gear_raw != 0  # 0 = Park/Neutral
+    ret.steerFaultTemporary, ret.steerFaultPermanent = self.update_hca_state_meb(hca_status, drive_mode=drive_mode)
 
     # 가속/브레이크 페달
     ret.gasPressed   = pt_cp.vl["Motor_51"]["Accel_Pedal_Pressure"] > 0
@@ -292,12 +295,20 @@ class CarState(CarStateBase):
     # ESP 홀드 (정차 확인): infiniteCable2와 동일하게 ESC_50.Motion_State == 3(완전정지) 사용.
     # 기존 Standstill(1비트)은 Motion_State(2비트)의 하위 1비트만 읽어 정차 판정 시점이
     # 어긋났음 -> EPB 홀드/릴리스 타이밍 불일치로 재출발이 막힐 수 있었음.
-    self.esp_hold_confirmation = pt_cp.vl["ESC_50"]["Motion_State"] == 3
+    # MQB Evo has no ESC_50.Motion_State -> ESP_21 hold confirmation (infiniteCable2 identical)
+    if self.CP.flags & VolkswagenFlags.MQB_EVO:
+      self.esp_hold_confirmation = bool(pt_cp.vl["ESP_21"]["ESP_Haltebestaetigung"])
+    else:
+      self.esp_hold_confirmation = pt_cp.vl["ESC_50"]["Motion_State"] == 3
 
     # 저속에서 운전자가 세게 제동한 직후 차가 종방향 제어를 일시 거부하는 구간.
     # 이 상태에서 출발요청(ACC_Anfahren)을 넣으면 TSK가 폴트난다 (commaai/opendbc).
     # 2 = inhibited. 실차 rlog 검증: MK1/MK2 모두 평시 1(not_inhibited)로 안정적으로 읽힘.
-    self.long_control_inhibit = pt_cp.vl["VMM_02"]["Long_Control_Inhibit"] == 2
+    # MQB Evo: no verified Long_Control_Inhibit bit (not in vw_mqbevo DBC)
+    if self.CP.flags & VolkswagenFlags.MQB_EVO:
+      self.long_control_inhibit = False
+    else:
+      self.long_control_inhibit = pt_cp.vl["VMM_02"]["Long_Control_Inhibit"] == 2
 
     # ACC/크루즈 상태
     ret.cruiseState.available  = pt_cp.vl["Motor_51"]["TSK_Status"] in (2, 3, 4, 5)
@@ -305,6 +316,7 @@ class CarState(CarStateBase):
     # accFaulted: 원시 TSK fault(6/7)를 update_acc_fault로 디바운스. 주차 중(EPB+비주행)엔 무시,
     # 주행 전환 직후 100프레임 grace -> 출발 직후 일시적 TSK 글리치로 인한 오해제 방지. (infiniteCable2)
     acc_drive_mode = ret.gearShifter == GearShifter.drive
+    # MQB Evo uses the same carrot MEB debounce (long_control_inhibit is always False there).
     ret.accFaulted = self.update_acc_fault(pt_cp.vl["Motor_51"]["TSK_Status"] in (6, 7),
                                            parking_brake=ret.parkingBrake, drive_mode=acc_drive_mode,
                                            long_inhibit=self.long_control_inhibit)
@@ -461,6 +473,9 @@ class CarState(CarStateBase):
     if CP.flags & VolkswagenFlags.PQ:
       return CarState.get_can_parsers_pq(CP)
 
+    if CP.flags & VolkswagenFlags.MQB_EVO:
+      return CarState.get_can_parsers_mqb_evo(CP)
+
     if CP.flags & VolkswagenFlags.MEB:
       return CarState.get_can_parsers_meb(CP)
 
@@ -483,6 +498,19 @@ class CarState(CarStateBase):
   def get_can_parsers_pq(CP):
     return {
       Bus.pt: CANParser(DBC[CP.carFingerprint][Bus.pt], [], CANBUS.pt),
+      Bus.cam: CANParser(DBC[CP.carFingerprint][Bus.pt], [], CANBUS.cam),
+    }
+
+  @staticmethod
+  def get_can_parsers_mqb_evo(CP):
+    # No rlog from a carrot MQB Evo car yet, so (like infiniteCable2) only declare the variable-rate
+    # messages; everything else is registered on first read and its frequency is learned by the parser.
+    pt_messages = [
+      ("Blinkmodi_02", 1),  # From J519 BCM (1Hz when no lights active, 50Hz when active)
+      ("SMLS_01", 1),       # From stalk controls
+    ]
+    return {
+      Bus.pt:  CANParser(DBC[CP.carFingerprint][Bus.pt], pt_messages, CANBUS.pt),
       Bus.cam: CANParser(DBC[CP.carFingerprint][Bus.pt], [], CANBUS.cam),
     }
 
