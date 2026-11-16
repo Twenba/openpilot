@@ -1117,6 +1117,14 @@ FW_VERSIONS = {
       b'\xf1\x872Q0907572T \xf1\x890383',
     ],
   },
+  CAR.SKODA_KODIAQ_MK2: {
+    # MQB Evo GEN2. Radar FW copied from the infiniteCable2 AUDI_A3_MK4 entry this Kodiaq Mk2 ran as there;
+    # TODO verify against the car's own carFw. Fuzzy VIN matching (TMB + chassis "PS") needs the live radar FW
+    # listed here. If it does not match, select "Škoda Kodiaq 2024-26" manually (CarSelected3).
+    (Ecu.fwdRadar, 0x757, None): [
+      b'\xf1\x871N3907567E \xf1\x890550',
+    ],
+  },
   CAR.SKODA_OCTAVIA_MK3: {
     (Ecu.engine, 0x7e0, None): [
       b'\xf1\x8704C906025L \xf1\x896198',
