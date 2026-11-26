@@ -1,3 +1,5 @@
+from openpilot.system.ui.lib.multilang import tr_noop
+
 from openpilot.cereal import log
 
 from openpilot.system.ui.widgets.scroller import NavScroller
@@ -14,28 +16,26 @@ class TogglesLayoutMici(NavScroller):
   def __init__(self):
     super().__init__()
 
-    self._personality_toggle = BigMultiParamToggle("following distance", "LongitudinalPersonality", ["aggressive", "standard", "relaxed"],
-                                                   description="Standard is recommended.\n" +
+    self._personality_toggle = BigMultiParamToggle(tr_noop("following distance"), "LongitudinalPersonality", ["aggressive", "standard", "relaxed"],
+                                                   description=tr_noop("Standard is recommended.\n" +
                                                                "Aggressive follows closer, with firmer gas and braking.\n" +
                                                                "Relaxed leaves more space.\n" +
-                                                               "Use the steering wheel distance button on supported cars.")
+                                                               "Use the steering wheel distance button on supported cars."))
     self._initial_cruise_speed = InitialCruiseSpeedButton()
     self._initial_cruise_speed.set_visible(lambda: ui_state.CP is not None and ui_state.has_longitudinal_control and not ui_state.CP.pcmCruise)
     is_metric_toggle = BigToggle("use metric units", initial_state=ui_state.params.get_bool("IsMetric"), toggle_callback=self._on_metric_toggle)
     ldw_toggle = BigParamControl("lane departure warnings", "IsLdwEnabled",
-                                 description="Warn when you drift across a detected lane line.\n" +
-                                             "Only above 31 mph (50 km/h), with no turn signal.")
-    always_on_dm_toggle = BigParamControl("always-on driver monitor", "AlwaysOnDM", description="Monitor the driver even when sunnypilot is not engaged.")
+                                 description=tr_noop("Warn when you drift across a detected lane line.\nOnly above 31 mph (50 km/h), with no turn signal."))
+    always_on_dm_toggle = BigParamControl("always-on driver monitor", "AlwaysOnDM",
+                                         description=tr_noop("Monitor the driver even when sunnypilot is not engaged."))
     record_front = BigParamControl("record & upload cabin camera", "RecordFront",
                                    description_icon=gui_app.texture("icons_mici/settings/device/cameras.png", 64, 64),
-                                   toggle_callback=restart_needed_callback, description="Upload cabin camera data to help improve driver monitoring.")
+                                   toggle_callback=restart_needed_callback, description=tr_noop("Upload cabin camera data to help improve driver monitoring."))
     record_mic = BigParamControl("record & upload mic audio", "RecordAudio", description_icon=gui_app.texture("icons_mici/microphone.png", 64, 64),
                                  toggle_callback=restart_needed_callback,
-                                 description="Record microphone audio while driving.\n" +
-                                             "Audio is included in dashcam videos in sunnylink.")
+                                 description=tr_noop("Record microphone audio while driving.\nAudio is included in dashcam videos in sunnylink."))
     enable_openpilot = BigParamControl("enable sunnypilot", "OpenpilotEnabledToggle", toggle_callback=restart_needed_callback,
-                                       description="Enable to use sunnypilot driver assistance.\n" +
-                                                   "Disable to use your car's stock driver assistance.")
+                                       description=tr_noop("Enable to use sunnypilot driver assistance.\nDisable to use your car's stock driver assistance."))
 
 
     self._scroller.add_widgets([

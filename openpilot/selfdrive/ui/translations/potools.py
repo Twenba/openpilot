@@ -5,6 +5,7 @@ implementations for extracting, creating, and updating .po files.
 """
 
 import ast
+import json
 import os
 import re
 from dataclasses import dataclass, field
@@ -190,6 +191,16 @@ def write_po(path: str | Path, header: POEntry | None, entries: list[POEntry]) -
 
 # ──── String extraction (replaces xgettext) ────
 
+def _static_string(node: ast.AST) -> str | None:
+  if isinstance(node, ast.Constant) and isinstance(node.value, str):
+    return node.value
+  if isinstance(node, ast.BinOp) and isinstance(node.op, ast.Add):
+    left, right = _static_string(node.left), _static_string(node.right)
+    if left is not None and right is not None:
+      return left + right
+  return None
+
+
 def extract_strings(files: list[str], basedir: str) -> list[POEntry]:
   """Extract tr/trn/tr_noop calls from Python source files."""
   seen: dict[str, POEntry] = {}
@@ -222,9 +233,8 @@ def extract_strings(files: list[str], basedir: str) -> list[POEntry]:
       is_flagged = name in ('tr', 'trn')
 
       if name in ('tr', 'tr_noop'):
-        if not node.args or not isinstance(node.args[0], ast.Constant) or not isinstance(node.args[0].value, str):
+        if not node.args or (msgid := _static_string(node.args[0])) is None:
           continue
-        msgid = node.args[0].value
         if msgid in seen:
           if ref not in seen[msgid].source_refs:
             seen[msgid].source_refs.append(ref)
@@ -235,12 +245,9 @@ def extract_strings(files: list[str], basedir: str) -> list[POEntry]:
       elif name == 'trn':
         if len(node.args) < 2:
           continue
-        a1, a2 = node.args[0], node.args[1]
-        if not (isinstance(a1, ast.Constant) and isinstance(a1.value, str)):
+        msgid, msgid_plural = _static_string(node.args[0]), _static_string(node.args[1])
+        if msgid is None or msgid_plural is None:
           continue
-        if not (isinstance(a2, ast.Constant) and isinstance(a2.value, str)):
-          continue
-        msgid, msgid_plural = a1.value, a2.value
         if msgid in seen:
           if ref not in seen[msgid].source_refs:
             seen[msgid].source_refs.append(ref)
@@ -256,6 +263,61 @@ def extract_strings(files: list[str], basedir: str) -> list[POEntry]:
 
 
 # ──── POT generation ────
+
+def extract_offroad_strings(basedir: str | Path) -> list[POEntry]:
+  """Include Chestnut alert templates and status text translated by the UI."""
+  root = Path(basedir)
+  alert_file = "openpilot/selfdrive/selfdrived/alerts_offroad.json"
+  alerts = json.loads((root / alert_file).read_text(encoding="utf-8"))
+  sources = {alert["text"]: alert_file for key, alert in alerts.items()
+             if key.startswith("Offroad_Chestnut") and alert["text"] != "%1"}
+  status_file = "openpilot/system/hardware/chestnut/status.py"
+  tree = ast.parse((root / status_file).read_text(encoding="utf-8"))
+  for node in ast.walk(tree):
+    if isinstance(node, ast.Constant) and isinstance(node.value, str) and node.value.startswith("Chestnut "):
+      sources[node.value] = status_file
+  return [POEntry(msgid=text, source_refs=[source]) for text, source in sources.items()]
+
+
+def extract_runtime_alert_strings(basedir: str | Path) -> list[POEntry]:
+  """Collect literal alert text rendered through tr(), without importing control code."""
+  relative = 'openpilot/sunnypilot/selfdrive/selfdrived/events.py'
+  tree = ast.parse((Path(basedir) / relative).read_text(encoding='utf-8'))
+  seen = {}
+  for node in ast.walk(tree):
+    if not isinstance(node, ast.Call) or not isinstance(node.func, ast.Name) or node.func.id != 'Alert':
+      continue
+    for arg in node.args[:2]:
+      if (text := _static_string(arg)):
+        seen.setdefault(text, POEntry(msgid=text, source_refs=[relative]))
+  # Every literal alert text in the main openpilot event catalog also reaches the
+  # C4 renderer through selfdriveState (e.g. "Steering Fault May Be Imminent").
+  relative = 'openpilot/selfdrive/selfdrived/events.py'
+  path = Path(basedir) / relative
+  if path.exists():
+    for node in ast.walk(ast.parse(path.read_text(encoding='utf-8'))):
+      if isinstance(node, ast.Call) and isinstance(node.func, ast.Name) and node.func.id.endswith('Alert'):
+        for arg in node.args[:2]:
+          if (text := _static_string(arg)):
+            seen.setdefault(text, POEntry(msgid=text, source_refs=[relative]))
+  # These audited C4 warnings also reach the renderer through selfdriveState.
+  # Keep this scope explicit rather than importing every platform's alert catalog.
+  for relative, texts in {
+    'openpilot/selfdrive/selfdrived/events.py': (
+      'Changing Lanes', 'Steer Left', 'Confirm Lane Change', 'Steer Right', 'Car in Blindspot', 'Reverse',
+      'Pay Attention', 'Driver Distracted', 'Press Resume', 'take control', 'turn exceeds limit',
+    ),
+    'openpilot/sunnypilot/selfdrive/selfdrived/events_base.py': ('openpilot will disengage',),
+  }.items():
+    path = Path(basedir) / relative
+    if path.exists():
+      literals = {node.value for node in ast.walk(ast.parse(path.read_text(encoding='utf-8')))
+                  if isinstance(node, ast.Constant) and isinstance(node.value, str)}
+      for text in texts:
+        if text in literals:
+          seen.setdefault(text, POEntry(msgid=text, source_refs=[relative]))
+  return list(seen.values())
+
 
 def _build_pot_header() -> POEntry:
   return POEntry(

@@ -11,7 +11,7 @@ from openpilot.selfdrive.ui.mici.widgets.button import BigButton
 from openpilot.selfdrive.ui.mici.widgets.dialog import BigDialog
 from openpilot.selfdrive.ui.ui_state import ui_state
 from openpilot.system.ui.lib.application import gui_app, MousePos
-from openpilot.system.ui.lib.multilang import tr
+from openpilot.system.ui.lib.multilang import tr, tr_noop
 from openpilot.system.ui.widgets.scroller import NavScroller
 
 UPDATER_TIMEOUT = 10.0  # seconds to wait for updater to respond
@@ -34,7 +34,9 @@ class UpdaterState(IntEnum):
 
 class SoftwareInfoLayoutMici(InfoLayoutMici):
   def __init__(self):
-    super().__init__("version", "", "branch", "")
+    super().__init__(tr_noop("version"), "", tr_noop("branch"), "")
+    self.subtext1.set_font_size(32)
+    self.subtext2.set_font_size(32)
 
   def _update_state(self):
     super()._update_state()
@@ -57,7 +59,7 @@ class CheckUpdateButton(BigButton):
   def __init__(self):
     self._txt_update_icon = gui_app.texture("icons_mici/settings/device/update.png", 64, 75)
     self._txt_up_to_date_icon = gui_app.texture("icons_mici/settings/device/up_to_date.png", 64, 64)
-    super().__init__("check for update", "", self._txt_update_icon)
+    super().__init__(tr_noop("check for update"), "", self._txt_update_icon)
 
     self._waiting_for_updater_t: float | None = None
     self._hide_value_t: float | None = None
@@ -123,7 +125,7 @@ class CheckUpdateButton(BigButton):
 
       if self._waiting_for_updater_t is not None and rl.get_time() - self._waiting_for_updater_t > UPDATER_TIMEOUT:
         self.set_rotate_icon(False)
-        self.set_value("updater failed\nto respond")
+        self.set_value(tr_noop("updater failed\nto respond"))
         self._state = UpdaterState.IDLE
         self._hide_value_t = rl.get_time()
 
@@ -169,7 +171,7 @@ class CheckUpdateButton(BigButton):
 
 class InstallUpdateButton(BigButton):
   def __init__(self):
-    super().__init__("install now", "", gui_app.texture("icons_mici/settings/device/reboot.png", 64, 70))
+    super().__init__(tr_noop("install now"), "", gui_app.texture("icons_mici/settings/device/reboot.png", 64, 70))
     self.set_visible(lambda: ui_state.is_offroad() and ui_state.params.get_bool("UpdateAvailable"))
 
   def _update_state(self):
@@ -218,8 +220,8 @@ class BranchSelectPage(NavScroller):
 
 class TargetBranchButton(BigButton):
   def __init__(self, check_update_btn: CheckUpdateButton):
-    super().__init__("target branch", ui_state.params.get("UpdaterTargetBranch") or "",
-                     description="Select the software branch to download on the next update check.")
+    super().__init__(tr_noop("target branch"), ui_state.params.get("UpdaterTargetBranch") or "",
+                     description=tr_noop("Select the software branch to download on the next update check."))
     self._check_update_btn = check_update_btn
     self.set_click_callback(self._on_click)
     self.set_visible(not ui_state.params.get_bool("IsTestedBranch"))
@@ -247,7 +249,7 @@ class TargetBranchButton(BigButton):
 class ForceDownloadButton(BigButton):
   def __init__(self):
     self._txt_update_icon = gui_app.texture("icons_mici/settings/device/update.png", 64, 75)
-    super().__init__("force download", "", self._txt_update_icon)
+    super().__init__(tr_noop("force download"), "", self._txt_update_icon)
 
     self._waiting_for_updater_t: float | None = None
     self._hide_value_t: float | None = None
@@ -298,7 +300,7 @@ class ForceDownloadButton(BigButton):
 
       if self._waiting_for_updater_t is not None and rl.get_time() - self._waiting_for_updater_t > UPDATER_TIMEOUT:
         self.set_rotate_icon(False)
-        self.set_value("updater failed\nto respond")
+        self.set_value(tr_noop("updater failed\nto respond"))
         self._state = UpdaterState.IDLE
         self._hide_value_t = rl.get_time()
 
@@ -332,10 +334,10 @@ class SoftwareLayoutMici(NavScroller):
     def uninstall_openpilot_callback():
       ui_state.params.put_bool("DoUninstall", True, block=True)
 
-    uninstall_openpilot_btn = EngagedConfirmationButton("uninstall sunnypilot", "uninstall",
+    uninstall_openpilot_btn = EngagedConfirmationButton(tr_noop("uninstall sunnypilot"), tr_noop("uninstall"),
                                                         gui_app.texture("icons_mici/settings/device/uninstall.png", 64, 64),
                                                         uninstall_openpilot_callback, exit_on_confirm=False,
-                                                        description="Remove openpilot from this device.",
+                                                        description=tr_noop("Remove openpilot from this device."),
                                                         description_icon=gui_app.texture("icons_mici/setup/factory_reset.png", 64, 64))
 
     check_update_btn = CheckUpdateButton()

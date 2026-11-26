@@ -7,7 +7,7 @@ from openpilot.selfdrive.ui.mici.widgets.button import BigButton, LABEL_COLOR
 from openpilot.selfdrive.ui.mici.widgets.dialog import BigDialogBase
 from openpilot.selfdrive.ui.ui_state import ui_state
 from openpilot.system.ui.lib.application import gui_app, FontWeight, TextAlignment, FONT_SCALE
-from openpilot.system.ui.lib.multilang import tr
+from openpilot.system.ui.lib.multilang import tr, tr_noop
 from openpilot.system.ui.lib.scroll_panel2 import AUTO_SCROLL_TC, GuiScrollPanel2, ScrollState
 from openpilot.system.ui.lib.text_measure import measure_text_cached
 from openpilot.system.ui.widgets import Widget
@@ -145,9 +145,9 @@ class InitialCruiseSpeedPicker(BigDialogBase):
 
 class InitialCruiseSpeedButton(BigButton):
   def __init__(self):
-    super().__init__("initial max speed", " ", description="Max speed when engaging openpilot.\n" +
+    super().__init__(tr_noop("initial max speed"), " ", description=tr_noop("Max speed when engaging openpilot.\n" +
                                                            "If you are already driving faster, your current speed is used.\n" +
-                                                           "Resume restores the previous max speed.")
+                                                           "Resume restores the previous max speed."))
     self._picker = InitialCruiseSpeedPicker(self.refresh)
     self.set_click_callback(lambda: gui_app.push_widget(self._picker))
     self.refresh()

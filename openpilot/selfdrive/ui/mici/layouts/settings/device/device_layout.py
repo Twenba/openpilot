@@ -14,7 +14,7 @@ from openpilot.selfdrive.ui.mici.widgets.dialog import BigDialog, BigConfirmatio
 from openpilot.selfdrive.ui.mici.onroad.cabin_camera_dialog import CabinCameraDialog
 from openpilot.selfdrive.ui.mici.layouts.onboarding import TrainingGuide, TermsPage
 from openpilot.system.ui.lib.application import gui_app, MousePos
-from openpilot.system.ui.lib.multilang import tr
+from openpilot.system.ui.lib.multilang import tr, tr_noop
 from openpilot.selfdrive.ui.ui_state import device, ui_state
 from openpilot.system.ui.widgets.html_render import HtmlRenderer
 from openpilot.system.athena.registration import UNREGISTERED_DONGLE_ID
@@ -170,8 +170,9 @@ class DeviceLayoutMici(NavScroller):
 
     reset_calibration_btn = EngagedConfirmationButton("reset calibration", "reset", gui_app.texture("icons_mici/settings/device/lkas.png", 122, 64),
                                                       reset_calibration_callback,
-                                                      description="Mount the device within 4° left or right and 5° up or 9° down. openpilot calibrates " +
-                                                                  "continuously; resetting is rarely needed. Resetting clears learned calibration.")
+                                                      description=tr_noop("Mount the device within 4° left or right and 5° up or 9° down. " +
+                                                                          "openpilot calibrates continuously; resetting is rarely needed. " +
+                                                                          "Resetting clears learned calibration."))
 
     reboot_btn = EngagedConfirmationCircleButton("reboot", gui_app.texture("icons_mici/settings/device/reboot.png", 64, 70),
                                                  reboot_callback, exit_on_confirm=False)
@@ -184,7 +185,7 @@ class DeviceLayoutMici(NavScroller):
     regulatory_btn.set_click_callback(self._on_regulatory)
 
     cabin_cam_btn = BigButton("driver\ncamera preview", "", gui_app.texture("icons_mici/settings/device/cameras.png", 64, 64),
-                              description="Preview the cabin camera to check driver monitoring visibility. The vehicle must be off.")
+                              description=tr_noop("Preview the cabin camera to check driver monitoring visibility. The vehicle must be off."))
     cabin_cam_btn.set_click_callback(lambda: gui_app.push_widget(CabinCameraDialog()))
     cabin_cam_btn.set_enabled(lambda: ui_state.is_offroad())
 
